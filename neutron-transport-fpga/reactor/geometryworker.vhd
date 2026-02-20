@@ -54,9 +54,9 @@ architecture behavioral of geometryworker is
         return to_integer(v_low_bits);
     end function;
 
-    -- Geometry Constants (Cube 1.0 in Q16.48)
-    -- Changed from tiny value to 1.0 to check Collisions
-    constant BOUNDARY_LIMIT : signed(length-1 downto 0) := x"0001000000000000";
+    -- Geometry Constants (Cube 1m in Q16.48)
+    -- BOUNDARY_LIMIT = 500 mm (cube from -500 to +500 mm = 1 meter edge)
+    constant BOUNDARY_LIMIT : signed(length-1 downto 0) := x"01F4000000000000";
     
     -- Divider Component
     -- Used to calculate Distance = (Boundary - Position) / Direction
