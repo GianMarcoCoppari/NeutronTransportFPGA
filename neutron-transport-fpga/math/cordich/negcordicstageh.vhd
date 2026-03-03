@@ -23,6 +23,11 @@ entity negcordicstageh is
 end entity negcordicstageh;
 
 architecture rtl of negcordicstageh is    
+    -- Beta parameter for hyperbolic CORDIC negative iterations.
+    -- Shift amount = beta - iter (always positive for negative iterations).
+    -- Division by 2^(beta - iter). For hyperbolic mode, beta = 2.
+    -- Reference: preprocessing/include/format.hpp (KInvHyper)
+    constant beta : integer := 2;
 
 begin
     compute : process (clk, rst) begin 
@@ -42,8 +47,8 @@ begin
                         -- sottraggo angolo 
 
                         stateout <= (
-                            statein.x + statein.y - shift_right(statein.y, iter - beta),
-                            statein.y + statein.x - shift_right(statein.x, iter - beta),
+                            statein.x + statein.y - shift_right(statein.y, beta - iter),
+                            statein.y + statein.x - shift_right(statein.x, beta - iter),
                             statein.z - phi
                         );
                     else 
@@ -52,8 +57,8 @@ begin
                         -- aggiungo angolo
 
                         stateout <= (
-                            statein.x - statein.y + shift_right(statein.y, iter - beta),
-                            statein.y - statein.x + shift_right(statein.x, iter - beta),
+                            statein.x - statein.y + shift_right(statein.y, beta - iter),
+                            statein.y - statein.x + shift_right(statein.x, beta - iter),
                             statein.z + phi
                         );
                     end if;
@@ -63,20 +68,22 @@ begin
                         -- componente y positiva, 
                         -- ruotare in senso orario, eta = -1
                         -- sottraggo angolo
+                        -- x' = x - y*(1 - 2^(i-beta)) = x - y + shr(y, beta-i)
 
                         stateout <= (
-                            statein.x - statein.y - shift_right(statein.y, iter - beta),
-                            statein.y - statein.x - shift_right(statein.x, iter - beta),
+                            statein.x - statein.y + shift_right(statein.y, beta - iter),
+                            statein.y - statein.x + shift_right(statein.x, beta - iter),
                             statein.z - phi
                         );
                     else 
                         -- componente y negativa, 
                         -- ruotare in senso antiorario, eta = +1
                         -- aggiungo angolo
+                        -- x' = x + y*(1 - 2^(i-beta)) = x + y - shr(y, beta-i)
 
                         stateout <= (
-                            statein.x + statein.y + shift_right(statein.y, iter - beta),
-                            statein.y + statein.x + shift_right(statein.x, iter - beta),
+                            statein.x + statein.y - shift_right(statein.y, beta - iter),
+                            statein.y + statein.x - shift_right(statein.x, beta - iter),
                             statein.z + phi
                         );
                     end if;

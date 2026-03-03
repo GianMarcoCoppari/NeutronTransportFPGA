@@ -17,11 +17,6 @@ package configopenmc is
     function ToNuclide(idx : integer) return nuclide_t;
     function ToIntNuclide(nucl : nuclide_t) return integer;
 
-    -- Mock Function to replace lost 'xs' package functionality for now
-    -- Returns 1/Sigma_total (fixed values for testing)
-    -- Using m_blocksize * m_blocks width (matches particle_t fields)
-    function get_inv_sigma(mat : material_t) return unsigned;
-
     -- Tipi di Operazioni per la Pipeline
     type operation_t is (
         OP_INIT, 
@@ -123,25 +118,6 @@ package body configopenmc is
             when others=> return 0; -- safe default
         end case;
     end function ToIntNuclide;
-
-    function get_inv_sigma(mat : material_t) return unsigned is
-         -- Assuming 32-bit fixed point for now (length constant from physicsworker is tricky here)
-         -- We use m_blocksize * m_blocks from config
-         variable res : unsigned(m_blocksize * m_blocks - 1 downto 0);
-    begin
-         -- Mock Values
-         if mat = FUEL then
-             -- E.g. Sigma = 1.0 -> Inv = 1.0
-             -- Format Q16.48 (64 bit total).
-             -- Bit 48 is the weight 2^0 = 1.0.
-             res := (others => '0');
-             res(48) := '1'; 
-         else
-             -- VOID -> Infinite distance (Inv Sigma very large)
-             res := (others => '1');
-         end if;
-         return res;
-    end function;
 
     -- utility per conversione in std_logic_vector
     -- necessarie per vio Vivado, che non supporta tipi enumerati nei record

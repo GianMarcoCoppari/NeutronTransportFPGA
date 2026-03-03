@@ -3,6 +3,7 @@ USE IEEE.STD_LOGIC_1164.ALL;
 USE IEEE.NUMERIC_STD.ALL;
 USE work.config.ALL;
 USE work.configopenmc.ALL;
+USE work.xs.ALL;
 
 
 ENTITY CalcDistPhysics IS
@@ -18,28 +19,21 @@ ENTITY CalcDistPhysics IS
 END CalcDistPhysics;
 
 ARCHITECTURE Structural OF CalcDistPhysics IS
-    -- Costanti Mockup
-    constant SIGMA_T_FUEL : unsigned(length-1 downto 0) := to_unsigned(10, length);
     
     -- Segnali Interni
-    signal w_neg_log_res : unsigned(length-1 downto 0);
-    signal w_sigma       : unsigned(length-1 downto 0);
-    signal w_quotient    : unsigned(length-1 downto 0);
+    signal w_inv_sigma   : unsigned(length-1 downto 0);  -- 1/Sigma_t from xs package (Q16.48)
+    signal w_neg_log     : unsigned(length-1 downto 0);  -- -ln(rng) (Q16.48)
     signal w_ln_out_signed : signed(length-1 downto 0);
+    signal w_product     : unsigned(2*length-1 downto 0); -- full 128-bit product
+    signal w_dist        : unsigned(length-1 downto 0);   -- truncated result (Q16.48)
 
 BEGIN
-    -- MUX Materiale (Preparation per Memory Read)
-    process(material)
-    begin
-        if material = FUEL then
-            w_sigma <= SIGMA_T_FUEL;
-        else
-            w_sigma <= (others => '0');
-        end if;
-    end process;
+    -- MUX Materiale: lookup 1/Sigma_t from cross section data
+    w_inv_sigma <= get_inv_sigma(material);
 
     -- =============================================================
     -- 1. LOGARITMO: -ln(rng)
+    -- customln computes -ln(win), output is signed Q16.48
     -- =============================================================
     Inst_Cordic: entity work.customln
     PORT MAP (
@@ -49,28 +43,24 @@ BEGIN
         lnout => w_ln_out_signed
     );
 
-    w_neg_log_res <= unsigned(-w_ln_out_signed);
+    -- -ln(rng) is positive (since rng in [0,1]), convert to unsigned
+    w_neg_log <= unsigned(w_ln_out_signed);
 
     -- =============================================================
-    -- 2. DIVISIONE: -ln(rng) / Sigma
+    -- 2. MOLTIPLICAZIONE: dist = -ln(rng) * (1/Sigma_t)
+    -- Both operands in Q16.48, product is Q32.96
+    -- Extract Q16.48 result by taking bits [111:48]
     -- =============================================================
-    instdiv : entity work.divr2
-        port map (
-            clk => clk,
-            rst => rst,
-
-            dividend  => w_neg_log_res,
-            divisor   => w_sigma,
-            quotient  => w_quotient
-        );
+    w_product <= w_neg_log * w_inv_sigma;
+    w_dist    <= w_product(111 downto 48);  -- Q16.48 slice of Q32.96
 
     -- Output logic
-    process(material, w_quotient)
+    process(material, w_dist)
     begin
         if material = VOID then
             dist_coll <= (others => '1'); -- Infinito
         else
-            dist_coll <= w_quotient;
+            dist_coll <= w_dist;
         end if;
     end process;
 

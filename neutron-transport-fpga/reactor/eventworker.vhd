@@ -4,6 +4,7 @@ use ieee.numeric_std.all;
 use std.textio.all; -- Added for debug
 use ieee.std_logic_textio.all; -- Added for debug
 use work.configopenmc.all;
+use work.xs.all;
 
 ----------------------------------------------------------------------------------
 -- Entity: eventworker
@@ -105,9 +106,12 @@ architecture behavioral of eventworker is
     signal event_reg      : event_type_t;
 
     -- Segnali PRNG
-    signal rnd_val      : unsigned(63 downto 0);
-    constant THRESHOLD_ABS     : unsigned(63 downto 0) := x"1999999999999999"; -- 10%
-    constant THRESHOLD_FISSION : unsigned(63 downto 0) := x"3333333333333333"; -- 20% (Accumulato, solo esempio)
+    signal rnd_raw      : unsigned(63 downto 0); -- Full 64-bit PRNG output
+    signal rnd_val      : unsigned(63 downto 0); -- Q16.48 in [0, 1)
+
+    -- Interaction probability thresholds (material-dependent, Q16.48 from xs package)
+    signal threshold_abs  : unsigned(63 downto 0);
+    signal threshold_fiss : unsigned(63 downto 0);
 
     -- Pipeline Signals
     signal pipe_valid_in_d : std_logic;
@@ -145,12 +149,19 @@ begin
 
     -- Istanza PRNG Locale
     inst_rng : xoshiro256
-        port map ( clk => clk, rst => rst, rnd => rnd_val );
+        port map ( clk => clk, rst => rst, rnd => rnd_raw );
+
+    -- Convert PRNG output to Q16.48 format [0, 1): take upper 48 bits as fractional
+    rnd_val <= resize(rnd_raw(63 downto 16), 64);
+
+    -- Lookup interaction probabilities from cross section data (material-dependent, Q16.48)
+    threshold_abs  <= get_prob_abs(particle_in.material);
+    threshold_fiss <= get_prob_fiss(particle_in.material);
 
     ----------------------------------------------------------------------------
     -- STADIO 1: DECISIONE LOGICA (Combinatoriale)
     ----------------------------------------------------------------------------
-    process(valid_in, particle_in, rnd_val)
+    process(valid_in, particle_in, rnd_val, threshold_abs, threshold_fiss)
     begin
         event_decision <= EV_NONE;
         abs_start <= '0';
@@ -168,10 +179,10 @@ begin
                 -- COLLISION
                 -- Logica Semplificata: Abs vs Fission vs Scatter
                 -- Usiamo soglie cumulative
-                if rnd_val < THRESHOLD_ABS then
+                if rnd_val < threshold_abs then
                     event_decision <= EV_COLL_ABSORB;
                     abs_start <= '1';
-                elsif rnd_val < (THRESHOLD_ABS + THRESHOLD_FISSION) then
+                elsif rnd_val < (threshold_abs + threshold_fiss) then
                     -- FISSIONE (nuova!)
                     event_decision <= EV_COLL_FISSION;
                     fiss_start <= '1';

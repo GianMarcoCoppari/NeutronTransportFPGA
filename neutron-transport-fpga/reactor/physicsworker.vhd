@@ -195,9 +195,9 @@ BEGIN
         );
         
     -- Gestione Segno Logaritmo
-    -- ln(x) con x < 1 è negativo. Noi vogliamo la distanza positiva: -ln(x).
-    -- Quindi neghiamo il risultato (complemento a 2) e castiamo a unsigned.
-    neg_ln_out <= unsigned(-ln_out);
+    -- customln already outputs -ln(x) as a positive value (negation done inside).
+    -- We just cast to unsigned for the multiplier.
+    neg_ln_out <= unsigned(ln_out);
 
     -- =========================================================================
     -- 2. PIPELINE CONTROL & DELAY LOGIC
@@ -270,7 +270,9 @@ BEGIN
             else
                 s0_valid <= '0';
                 rng_pipe_ln(0) <= (others => '0');
-                s0_ln_in <= (others => '0'); 
+                -- Keep s0_ln_in at last valid value (don't clear to 0)
+                -- This ensures the CORDIC pipeline is filled with the correct
+                -- -ln(rng) value, compensating for any valid-signal alignment offset.
             end if;
             
             -- SHIFT REGISTER 1: Delay durante calcolo LN
