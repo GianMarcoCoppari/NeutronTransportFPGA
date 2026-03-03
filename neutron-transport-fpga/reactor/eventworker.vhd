@@ -1,12 +1,12 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
-use std.textio.all; -- Added for debug
-use ieee.std_logic_textio.all; -- Added for debug
+use std.textio.all;
+use ieee.std_logic_textio.all;
+use work.config.all;
 use work.configopenmc.all;
-use work.xs.all;
 
-----------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Entity: eventworker
 -- Description: 
 --   Gestisce l'evento post-trasporto.
@@ -16,13 +16,18 @@ use work.xs.all;
 --   1. SURFACE CROSSING:
 --      - Controlla tipo di superficie (Vacuum vs Reflective).
 --      - Se Vacuum -> Kill (Finished).
---      - Se Reflective -> Inverti componente velocità (Bounce).
 --
 --   2. COLLISION:
---      - Usa PRNG per decidere tipo reazione (Absorption vs Scattering).
---      - Se Absorption -> Kill.
---      - Se Scattering -> Chiama ScatteringKernel (nuova direzione).
-----------------------------------------------------------------------------------
+--      - Lancia il prob_lookup per ottenere P_abs(E), P_fiss(E) dalle tabelle nucleari.
+--      - Quando il lookup completa (~77 cicli), usa il PRNG per decidere:
+--        Absorption / Fission / Scattering.
+--      - Lancia il kernel appropriato.
+--
+-- Changes:
+--   - Probabilita' di interazione derivate dalle tabelle di sezioni d'urto 
+--     (ROM_PROB_ABSORPTION, ROM_PROB_FISSION) tramite prob_lookup energy-dependent.
+--   - Rimosso uso di costanti hardcoded (PROB_ABS_FUEL, PROB_FISS_FUEL).
+--------------------------------------------------------------------------------
 entity eventworker is
     port (
         clk         : in  std_logic;
@@ -44,7 +49,6 @@ end entity eventworker;
 architecture behavioral of eventworker is
 
     -- Helper function to safely convert ID to integer for logging
-    -- Handles large IDs by taking only lower bits that fit in integer range
     function safe_id_to_int(id_vec : std_logic_vector) return integer is
         variable v_low_bits : unsigned(30 downto 0);
     begin
@@ -99,28 +103,41 @@ architecture behavioral of eventworker is
         );
     end component;
 
+    -- =========================================================================
+    -- STATE MACHINE
+    -- =========================================================================
+    type state_t is (
+        S_IDLE,          -- Waiting for valid_in
+        S_WAIT_PROB,     -- Waiting for prob_lookup to complete
+        S_KERNEL_WAIT,   -- Kernel start pulse emitted, wait 1 clock for result
+        S_DECIDE,        -- Kernel result ready, produce output
+        S_EMITTING       -- Emitting fission daughter particles
+    );
+    signal state : state_t;
+
     -- Tipi di eventi interni
     type event_type_t is (EV_NONE, EV_SURFACE_VACUUM, EV_COLL_ABSORB, EV_COLL_SCATTER, EV_COLL_FISSION);
-    
     signal event_decision : event_type_t;
-    signal event_reg      : event_type_t;
 
-    -- Segnali PRNG
-    signal rnd_raw      : unsigned(63 downto 0); -- Full 64-bit PRNG output
-    signal rnd_val      : unsigned(63 downto 0); -- Q16.48 in [0, 1)
+    -- PRNG signals
+    signal rnd_raw : unsigned(63 downto 0);
+    signal rnd_val : unsigned(63 downto 0); -- Q16.48 in [0, 1)
 
-    -- Interaction probability thresholds (material-dependent, Q16.48 from xs package)
-    signal threshold_abs  : unsigned(63 downto 0);
-    signal threshold_fiss : unsigned(63 downto 0);
+    -- Probability lookup signals
+    signal prob_energy_in  : unsigned(length-1 downto 0);
+    signal prob_valid_in   : std_logic;
+    signal prob_abs_out    : unsigned(length-1 downto 0);
+    signal prob_fiss_out   : unsigned(length-1 downto 0);
+    signal prob_valid_out  : std_logic;
 
-    -- Pipeline Signals
-    signal pipe_valid_in_d : std_logic;
-    signal pipe_particle_d : particle_t;
+    -- Saved context (held during prob_lookup wait)
+    signal saved_particle : particle_t;
+    signal saved_rnd      : unsigned(63 downto 0); -- RNG snapshot for decision
 
-    -- Interconnessioni Kernels
-    signal abs_start : std_logic;
-    signal abs_done  : std_logic;
-    signal abs_dout  : particle_t;
+    -- Kernel interconnections
+    signal abs_start  : std_logic;
+    signal abs_done   : std_logic;
+    signal abs_dout   : particle_t;
 
     signal scat_start : std_logic;
     signal scat_done  : std_logic;
@@ -132,276 +149,272 @@ architecture behavioral of eventworker is
     signal fiss_dir   : direction_t;
     signal fiss_eng   : unsigned(15 downto 0);
 
-    -- Banking State Machine Signals
-    type bank_state_t is (S_IDLE, S_EMITTING);
-    signal bank_state    : bank_state_t := S_IDLE;
+    -- Fission Banking Signals  
     signal bank_counter  : integer range 0 to 4;
     signal bank_template : particle_t;
     
     -- Buffer per gestire conflitti (1 slot)
     signal conflict_valid : std_logic;
     signal conflict_p     : particle_t;
-    signal conflict_reg   : event_type_t;
     
     constant ID_OFFSET : integer := 100;
 
 begin
 
-    -- Istanza PRNG Locale
+    -- =========================================================================
+    -- COMPONENT INSTANCES
+    -- =========================================================================
+    
+    -- PRNG Locale
     inst_rng : xoshiro256
         port map ( clk => clk, rst => rst, rnd => rnd_raw );
 
     -- Convert PRNG output to Q16.48 format [0, 1): take upper 48 bits as fractional
     rnd_val <= resize(rnd_raw(63 downto 16), 64);
 
-    -- Lookup interaction probabilities from cross section data (material-dependent, Q16.48)
-    threshold_abs  <= get_prob_abs(particle_in.material);
-    threshold_fiss <= get_prob_fiss(particle_in.material);
-
-    ----------------------------------------------------------------------------
-    -- STADIO 1: DECISIONE LOGICA (Combinatoriale)
-    ----------------------------------------------------------------------------
-    process(valid_in, particle_in, rnd_val, threshold_abs, threshold_fiss)
-    begin
-        event_decision <= EV_NONE;
-        abs_start <= '0';
-        scat_start <= '0';
-        fiss_start <= '0';
-
-        if valid_in = '1' then
-            -- Default reset distanze logicamente qui (ma applicato dopo)
-            
-            if particle_in.nextop = OP_CROSS_SURFACE then
-                -- SURFACE (Vacuum)
-                event_decision <= EV_SURFACE_VACUUM;
-                
-            elsif particle_in.nextop = OP_COLLISION then
-                -- COLLISION
-                -- Logica Semplificata: Abs vs Fission vs Scatter
-                -- Usiamo soglie cumulative
-                if rnd_val < threshold_abs then
-                    event_decision <= EV_COLL_ABSORB;
-                    abs_start <= '1';
-                elsif rnd_val < (threshold_abs + threshold_fiss) then
-                    -- FISSIONE (nuova!)
-                    event_decision <= EV_COLL_FISSION;
-                    fiss_start <= '1';
-                else
-                    event_decision <= EV_COLL_SCATTER;
-                    scat_start <= '1';
-                end if;
-            end if;
-        end if;
-    end process;
-
-    ----------------------------------------------------------------------------
-    -- STADIO 2: ISTANZA KERNELS & PIPELINE REGISTERS
-    ----------------------------------------------------------------------------
+    -- Probability Lookup (energy-dependent, from nuclear data tables)
+    inst_prob_lookup : entity work.prob_lookup
+        port map (
+            clk       => clk,
+            rst       => rst,
+            energy_in => prob_energy_in,
+            valid_in  => prob_valid_in,
+            prob_abs_out  => prob_abs_out,
+            prob_fiss_out => prob_fiss_out,
+            valid_out     => prob_valid_out
+        );
     
+    -- Kernel: Absorption (1-cycle dummy)
     inst_absorption : absorption
         port map (
             clk => clk, rst => rst,
             start => abs_start,
-            particle_in => particle_in,
+            particle_in => saved_particle,
             done => abs_done,
             particle_out => abs_dout
         );
 
+    -- Kernel: Scattering (~100 cycles, CORDIC pipelined)
     inst_scattering : scattering_realistic
         port map (
             clk => clk, rst => rst,
             start => scat_start,
-            dir_in => particle_in.direction,
-            rnd_seed => rnd_val, -- Usa lo stesso seed usato per la decisione (o successivo, va bene uguale per random)
+            dir_in => saved_particle.direction,
+            rnd_seed => saved_rnd,
             done => scat_done,
             dir_out => scat_dout
         );
         
+    -- Kernel: Fission (1-cycle dummy)
     inst_fission : fission
         port map (
             clk => clk, rst => rst,
             start => fiss_start,
-            particle_in => particle_in,
-            rnd_seed => rnd_val,
+            particle_in => saved_particle,
+            rnd_seed => saved_rnd,
             done => fiss_done,
             nu_produced => fiss_nu,
             base_dir_out => fiss_dir,
             base_eng_out => fiss_eng
         );
 
-    -- Delay Line per mantenere il contesto della particella durante l'elaborazione dei kernel
-    process(clk, rst)
-        variable v_p : particle_t;
-    begin
-        if rst = '1' then
-            pipe_valid_in_d <= '0';
-            pipe_particle_d <= EMPTYPARTICLE;
-            event_reg <= EV_NONE;
-        elsif rising_edge(clk) then
-            pipe_valid_in_d <= valid_in;
-            event_reg <= event_decision;
-            
-            -- Copia particella e resetta distanze (preparazione per output)
-            if valid_in = '1' then
-                v_p := particle_in;
-                v_p.dist_collision := (others => '0');
-                v_p.dist_boundary  := (others => '0');
-                pipe_particle_d <= v_p;
-            end if;
-        end if; 
-    end process;
+    -- =========================================================================
+    -- BUSY SIGNAL: Busy when not idle OR conflict pending
+    -- =========================================================================
+    busy <= '0' when state = S_IDLE and conflict_valid = '0' else '1';
 
-    ----------------------------------------------------------------------------
-    -- STADIO 3: OUTPUT MUX & BANKING
-    ----------------------------------------------------------------------------
-    -- Gestione complessa: Fissione può produrre N particelle.
-    
-    busy <= '1' when bank_state = S_EMITTING or conflict_valid = '1' else '0';
-
+    -- =========================================================================
+    -- MAIN STATE MACHINE
+    -- =========================================================================
     process(clk, rst)
         variable v_out : particle_t;
-        variable l : line; -- Debug line
+        variable l : line;
     begin
         if rst = '1' then
+            state <= S_IDLE;
             valid_out <= '0';
             particle_out <= EMPTYPARTICLE;
             
-            bank_state    <= S_IDLE;
+            prob_valid_in  <= '0';
+            prob_energy_in <= (others => '0');
+            
+            abs_start  <= '0';
+            scat_start <= '0';
+            fiss_start <= '0';
+            
+            event_decision <= EV_NONE;
+            saved_particle <= EMPTYPARTICLE;
+            saved_rnd      <= (others => '0');
+            
             bank_counter  <= 0;
             bank_template <= EMPTYPARTICLE;
             
             conflict_valid <= '0';
             conflict_p     <= EMPTYPARTICLE;
-            conflict_reg   <= EV_NONE;
             
         elsif rising_edge(clk) then
-            valid_out <= '0';
+            -- Defaults: one-clock pulses
+            valid_out     <= '0';
+            prob_valid_in <= '0';
+            abs_start     <= '0';
+            scat_start    <= '0';
+            fiss_start    <= '0';
             
-            case bank_state is
+            case state is
+                -- =============================================================
+                -- S_IDLE: Waiting for new particle
+                -- =============================================================
                 when S_IDLE =>
-                    -- Se avevamo un conflitto pendente, processiamolo ora
+                    -- Drain pending conflict first
                     if conflict_valid = '1' then
-                         -- TODO: Refactoring per evitare duplicazione codice logic output
-                         -- Per brevità: Non gestiamo conflitti FISSION su conflitti. 
-                         -- Assumiamo che il conflitto sia roba semplice (Scattering/Abs).
-                         -- Se c'è un'altra Fissione nel conflitto, perdiamo i secondari > 1 per ora.
-                         valid_out <= '1';
-                         particle_out <= conflict_p; -- Già processata prima di stash
-                         conflict_valid <= '0';
-                         
-                    elsif pipe_valid_in_d = '1' then
-                        v_out := pipe_particle_d;
-        
-                        case event_reg is
-                            when EV_SURFACE_VACUUM =>
-                                v_out.alive := '0';
-                                v_out.nextop := OP_DYING;
-                                valid_out <= '1';
-                                particle_out <= v_out;
-                                
-                                write(l, string'("Interaction: SURFACE_LEAK, Id: "));
-                                write(l, safe_id_to_int(v_out.id));
-                                writeline(output, l);
-                                
-                            when EV_COLL_ABSORB =>
-                                valid_out <= '1';
-                                particle_out <= abs_dout;
-                                
-                                write(l, string'("Interaction: ABSORPTION, Id: "));
-                                write(l, safe_id_to_int(abs_dout.id));
-                                writeline(output, l);
-                                
-                            when EV_COLL_SCATTER =>
-                                v_out.direction := scat_dout;
-                                v_out.alive := '1';
-                                v_out.nextop := OP_ADVANCE;
-                                valid_out <= '1';
-                                particle_out <= v_out;
-                                
-                                write(l, string'("Interaction: SCATTER, Id: "));
-                                write(l, safe_id_to_int(v_out.id));
-                                writeline(output, l);
-                                
-                            when EV_COLL_FISSION =>
-                                -- FISSIONE TRIGGERED
-
-                                -- 1. Trace Parent Event (BEFORE ID CHANGE)
-                                write(l, string'("Interaction: FISSION, Parent Id: "));
-                                write(l, safe_id_to_int(v_out.id));
-                                write(l, string'(", n:"));
-                                write(l, fiss_nu);
-                                writeline(output, l);
-
-                                -- 2. TREE INDEXING ID GENERATION
-                                -- Formula: Child_ID = (Parent_ID * 8) + Index
-                                -- Using 3 bits (x8) prevents collision with Source IDs (multiples of 8)
-                                -- capable of handling up to 7 children (Index 1..7) without overflow to next multiple.
-                                -- Current Max Nu = 4.
-                                
-                                -- OVERFLOW PROTECTION: Check if upper bits are non-zero before shift
-                                -- If ID is too large (upper 3 bits occupied), wrap using modulo to prevent zero IDs
-                                if unsigned(v_out.id(strlength-1 downto strlength-3)) /= 0 then
-                                    -- Risk of overflow detected - use modulo to keep ID in safe range
-                                    -- Keep lower bits to maintain uniqueness within generation
-                                    write(l, string'("WARNING: ID overflow risk detected, applying modulo"));
-                                    writeline(output, l);
-                                    v_out.id := std_logic_vector(resize(unsigned(v_out.id(strlength-4 downto 0)) sll 3, strlength));
-                                else
-                                    -- Safe to shift without overflow
-                                    v_out.id := std_logic_vector(unsigned(v_out.id) sll 3);
-                                end if;
-                                
-                                -- DEBUG: Verify shifted ID is not zero
-                                write(l, string'("DEBUG: After shift, base ID = "));
-                                write(l, safe_id_to_int(v_out.id));
-                                writeline(output, l);
-                                
-                                -- CRITICAL CHECK: If ID became zero, it indicates overflow bug
-                                if unsigned(v_out.id) = 0 then
-                                    write(l, string'("ERROR: FISSION generated ZERO ID - parent was too large!"));
-                                    writeline(output, l);
-                                    -- Force non-zero ID to prevent silent failures
-                                    v_out.id := std_logic_vector(to_unsigned(1, strlength));
-                                end if;
-                                
-                                -- 3. Prepare Immediate Daughter (Index 1)
-                                v_out.alive := '1'; 
-                                v_out.direction := fiss_dir;
-                                v_out.nextop := OP_ADVANCE;
-                                
-                                -- Save Base ID for Bank (Base = Parent*8)
-                                bank_template <= v_out; 
-                                -- Set Bank Template ID to first BANK child (Index 2)
-                                bank_template.id <= std_logic_vector(unsigned(v_out.id) + 2);
-                                
-                                -- Set Immediate Output ID to Index 1
-                                v_out.id := std_logic_vector(unsigned(v_out.id) + 1);
-
-                                write(l, string'("  -> Child Created (Immediate), Id: "));
-                                write(l, safe_id_to_int(v_out.id));
-                                writeline(output, l);
-
-                                valid_out <= '1';
-                                particle_out <= v_out;
-                                
-                                -- Se nu > 1, attiva Banking
-                                if fiss_nu > 1 then
-                                    bank_state <= S_EMITTING;
-                                    bank_counter <= fiss_nu - 1;
-                                    -- bank_template is set above
-                                end if;
-                                
-                            when others =>
-                                valid_out <= '0';
-                        end case;
+                        valid_out <= '1';
+                        particle_out <= conflict_p;
+                        conflict_valid <= '0';
+                        
+                    elsif valid_in = '1' then
+                        if particle_in.nextop = OP_CROSS_SURFACE then
+                            -- =============================================
+                            -- SURFACE: Immediate output (no lookup needed)
+                            -- =============================================
+                            v_out := particle_in;
+                            v_out.alive := '0';
+                            v_out.nextop := OP_DYING;
+                            v_out.dist_collision := (others => '0');
+                            v_out.dist_boundary  := (others => '0');
+                            valid_out <= '1';
+                            particle_out <= v_out;
+                            
+                            write(l, string'("Interaction: SURFACE_LEAK, Id: "));
+                            write(l, safe_id_to_int(v_out.id));
+                            writeline(output, l);
+                            
+                        elsif particle_in.nextop = OP_COLLISION then
+                            -- =============================================
+                            -- COLLISION: Start prob_lookup, go wait
+                            -- =============================================
+                            saved_particle <= particle_in;
+                            saved_rnd      <= rnd_val; -- Snapshot RNG now
+                            
+                            prob_energy_in <= particle_in.energy;
+                            prob_valid_in  <= '1'; -- Pulse for 1 clock
+                            
+                            state <= S_WAIT_PROB;
+                        end if;
                     end if;
+                
+                -- =============================================================
+                -- S_WAIT_PROB: Waiting for prob_lookup to return (~77 cycles)
+                -- =============================================================
+                when S_WAIT_PROB =>
+                    if prob_valid_out = '1' then
+                        -- Probabilities available! Make collision decision.
+                        if saved_rnd < prob_abs_out then
+                            event_decision <= EV_COLL_ABSORB;
+                            abs_start <= '1';
+                        elsif saved_rnd < (prob_abs_out + prob_fiss_out) then
+                            event_decision <= EV_COLL_FISSION;
+                            fiss_start <= '1';
+                        else
+                            event_decision <= EV_COLL_SCATTER;
+                            scat_start <= '1';
+                        end if;
+                        
+                        state <= S_KERNEL_WAIT;
+                    end if;
+                
+                -- =============================================================
+                -- S_KERNEL_WAIT: Kernel start pulses were emitted last clock.
+                -- Wait 1 clock for 1-cycle dummy kernels to produce results.
+                -- =============================================================
+                when S_KERNEL_WAIT =>
+                    state <= S_DECIDE;
+                
+                -- =============================================================
+                -- S_DECIDE: Kernel results are now valid (1 clock after start).
+                -- =============================================================
+                when S_DECIDE =>
+                    v_out := saved_particle;
+                    v_out.dist_collision := (others => '0');
+                    v_out.dist_boundary  := (others => '0');
                     
+                    case event_decision is
+                        when EV_COLL_ABSORB =>
+                            valid_out <= '1';
+                            particle_out <= abs_dout;
+                            state <= S_IDLE;
+                            
+                            write(l, string'("Interaction: ABSORPTION, Id: "));
+                            write(l, safe_id_to_int(abs_dout.id));
+                            writeline(output, l);
+                            
+                        when EV_COLL_SCATTER =>
+                            v_out.direction := scat_dout;
+                            v_out.alive := '1';
+                            v_out.nextop := OP_ADVANCE;
+                            valid_out <= '1';
+                            particle_out <= v_out;
+                            state <= S_IDLE;
+                            
+                            write(l, string'("Interaction: SCATTER, Id: "));
+                            write(l, safe_id_to_int(v_out.id));
+                            writeline(output, l);
+                            
+                        when EV_COLL_FISSION =>
+                            -- FISSIONE TRIGGERED
+                            write(l, string'("Interaction: FISSION, Parent Id: "));
+                            write(l, safe_id_to_int(v_out.id));
+                            write(l, string'(", n:"));
+                            write(l, fiss_nu);
+                            writeline(output, l);
+
+                            -- TREE INDEXING ID GENERATION
+                            -- Formula: Child_ID = (Parent_ID * 8) + Index
+                            -- OVERFLOW PROTECTION
+                            if unsigned(v_out.id(strlength-1 downto strlength-3)) /= 0 then
+                                v_out.id := std_logic_vector(resize(unsigned(v_out.id(strlength-4 downto 0)) sll 3, strlength));
+                            else
+                                v_out.id := std_logic_vector(unsigned(v_out.id) sll 3);
+                            end if;
+                            
+                            -- Zero-ID guard
+                            if unsigned(v_out.id) = 0 then
+                                v_out.id := std_logic_vector(to_unsigned(1, strlength));
+                            end if;
+                            
+                            -- 1. Prepare Immediate Daughter (Index 1)
+                            v_out.alive := '1'; 
+                            v_out.direction := fiss_dir;
+                            v_out.nextop := OP_ADVANCE;
+                            
+                            -- Save template for banking (Index 2+)
+                            bank_template <= v_out; 
+                            bank_template.id <= std_logic_vector(unsigned(v_out.id) + 2);
+                            
+                            -- Output first daughter (Index 1)
+                            v_out.id := std_logic_vector(unsigned(v_out.id) + 1);
+                            valid_out <= '1';
+                            particle_out <= v_out;
+                            
+                            -- Start banking if nu > 1
+                            if fiss_nu > 1 then
+                                state <= S_EMITTING;
+                                bank_counter <= fiss_nu - 1;
+                            else
+                                state <= S_IDLE;
+                            end if;
+                                
+                        when others =>
+                            state <= S_IDLE;
+                    end case;
+                
+                -- =============================================================
+                -- S_EMITTING: Emitting fission daughter particles
+                -- =============================================================
                 when S_EMITTING =>
-                    -- Emetti particele dal Bank
                     valid_out <= '1';
-                    particle_out <= bank_template; -- Emetti copia (ID corrente: Base+2, Base+3...)
+                    particle_out <= bank_template;
                     
-                    -- Incrementa ID per il prossimo ciclo (se ce ne sono altri)
+                    -- Incrementa ID per il prossimo ciclo
                     bank_template.id <= std_logic_vector(unsigned(bank_template.id) + 1);
 
                     write(l, string'("[TRACE] Id: "));
@@ -412,29 +425,18 @@ begin
                     if bank_counter > 1 then
                         bank_counter <= bank_counter - 1;
                     else
-                        bank_state <= S_IDLE;
+                        state <= S_IDLE;
                     end if;
                     
-                    -- Se arriva un nuovo dato mentre siamo busy emitting?
-                    if pipe_valid_in_d = '1' then
-                         conflict_valid <= '1';
-                         -- Pre-elabora e salva
-                         if event_reg = EV_COLL_SCATTER then
-                             v_out := pipe_particle_d;
-                             v_out.direction := scat_dout;
-                             v_out.alive := '1';
-                             v_out.nextop := OP_ADVANCE;
-                             conflict_p <= v_out;
-                         elsif event_reg = EV_COLL_ABSORB then
-                             conflict_p <= abs_dout;
-                         else
-                             -- Surface o Fission su Fission (Edge case!)
-                             -- Se fissione su fissione mentre busy, perdiamo i secondari del conflitto
-                             v_out := pipe_particle_d;
-                             v_out.alive := '0'; 
-                             v_out.nextop := OP_DYING;
-                             conflict_p <= v_out;
-                         end if;
+                    -- Handle conflict if new data arrives while busy
+                    if valid_in = '1' then
+                        conflict_valid <= '1';
+                        v_out := particle_in;
+                        v_out.alive := '0';
+                        v_out.nextop := OP_DYING;
+                        v_out.dist_collision := (others => '0');
+                        v_out.dist_boundary  := (others => '0');
+                        conflict_p <= v_out;
                     end if;
                     
             end case;

@@ -4,7 +4,6 @@ use ieee.numeric_std.all;
 use work.config.all;
 use work.configcordic.all;
 use work.configopenmc.all;
-use work.xs.all;
 
 
 entity top is 

@@ -243,7 +243,10 @@ begin
                     when IDLE =>
                         -- Se c'è qualcosa da fare e la pipeline è pronta 
                         -- (e l'EventWorker non è occupato a emettere figli)
-                        if fifo_empty = '0' and pipe_ready = '1' and ev_busy = '0' then
+                        -- CRITICAL: pending_box = 0 ensures no particles are in-flight
+                        -- in the pipeline. This prevents particle drops when eventworker
+                        -- is busy with prob_lookup (~80 cycles).
+                        if fifo_empty = '0' and pipe_ready = '1' and ev_busy = '0' and pending_box = 0 then
                             fifo_rd_en <= '1'; -- Richiedi lettura
                             state <= WAIT_MEM;
                         end if;

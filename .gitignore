@@ -6,3 +6,15 @@ Doxyfile
 docs/
 run/
 preprocessing/
+
+# GHDL compiled objects and library files
+*.o
+*.cf
+e~*
+
+# Backup files
+*.bak
+
+# Simulation output
+*.vcd
+*.ghw
