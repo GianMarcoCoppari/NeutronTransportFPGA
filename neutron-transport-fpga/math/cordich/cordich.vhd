@@ -39,19 +39,7 @@ architecture rtl of cordich is
     -- signal statgesreg : cordichpipe_t;
 
 begin
-    -- regstages : process (clk, rst) begin 
-    --     if rst = '1' then 
-    --         stagesreg <= (others => ((others => '0'), (others => '0'), (others => '0')));
-    --     else 
-    --         if rising_edge(clk) then 
-    --             stagesreg <= stages;
-    --         end if;
-    --     end if;
-    -- end process regstages; 
-    
-    -- sub-components
     stages(0) <= statein;
-    
     genstagesneg: for i in 0 to m_negiter generate
         inst_neg : entity work.negcordicstageh
             generic map (
@@ -71,7 +59,7 @@ begin
         inst_pos : entity work.poscordicstageh
             generic map (
                 iter => atanhlut(i).index,
-                mode => m_vectoring
+                mode => mode
             )
             port map (
                 clk      => clk,

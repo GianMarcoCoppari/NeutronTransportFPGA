@@ -1,0 +1,39 @@
+v 4
+file . "./test/testcordic/tb_cordich.vhd" "79cefe602093d6318918c26abb4061a96d835473" "20260227084916.465":
+  entity tb_cordich at 1( 0) + 0 on 66;
+  architecture testbench of tb_cordich at 17( 263) + 0 on 67;
+file . "./math/cordich/poscordicstageh.vhd" "5f558a3ced9db3ba42655eb43946ac0db9ec35ff" "20260227084902.964":
+  entity poscordicstageh at 1( 0) + 0 on 62;
+  architecture rtl of poscordicstageh at 38( 986) + 0 on 63;
+file . "./config/pkg/configcordich.vhd" "44c528be117c3e601e6cb572abe3560a089c97e7" "20260227084850.122":
+  package configcordich at 7( 153) + 0 on 58;
+  package body configcordich at 115( 3617) + 0 on 59;
+file . "./config/pkg/config.vhd" "8f00fd54407a663570f62366148a06c34ea31733" "20260227084716.783":
+  package config at 1( 0) + 0 on 54 body;
+  package body config at 26( 758) + 0 on 55;
+file . "math/cordicc/sincos.vhd" "13505eefa787e9c9e6c8c65138dc7ebf17e4beed" "20260226131744.502":
+  entity sincos at 2( 1) + 0 on 22;
+  architecture rtl of sincos at 23( 591) + 0 on 23;
+file . "math/cordicc/reduceangle.vhd" "6c9514a5a90cd0660fd0e7825e47f6ecc79b0142" "20260226131744.243":
+  entity reduceangle at 1( 0) + 0 on 18;
+  architecture rtl of reduceangle at 21( 583) + 0 on 19;
+file . "config/pkg/configcordicc.vhd" "2bf98d610ea8fff94fb96ae84a7d186c9eaa49b5" "20260226131731.427":
+  package configcordicc at 7( 174) + 0 on 15;
+file . "math/cordicc/cordicstagec.vhd" "0e8b36f0e6d42969fa2603a8679ad10832765e5f" "20260226131744.080":
+  entity cordicstagec at 3( 133) + 0 on 16;
+  architecture rtl of cordicstagec at 27( 636) + 0 on 17;
+file . "math/cordicc/cordicc.vhd" "460ab6493a19673139d87eec4c9b7d3cd9834a24" "20260226131744.326":
+  entity cordicc at 1( 0) + 0 on 20;
+  architecture rtl of cordicc at 20( 350) + 0 on 21;
+file . "test/testcordic/tb_sincos.vhd" "acab4f2bb6071e0f905a3d65d520beb3c1b8218c" "20260226131756.836":
+  entity tb_sincos at 1( 0) + 0 on 24;
+  architecture test of tb_sincos at 11( 189) + 0 on 25;
+file . "./config/pkg/configcordic.vhd" "c116bb339f579b3a58e9260ec64be53d7d07199f" "20260227084845.534":
+  package configcordic at 1( 0) + 0 on 56;
+  package body configcordic at 34( 1151) + 0 on 57;
+file . "./math/cordich/negcordicstageh.vhd" "e6a01dc6f949402beaf33556cf41c21ad02bcb3d" "20260227084858.356":
+  entity negcordicstageh at 1( 0) + 0 on 60;
+  architecture rtl of negcordicstageh at 35( 1109) + 0 on 61;
+file . "./math/cordich/cordich.vhd" "509076b6f4b1697104c5c0762b132c9e9b5a293f" "20260227084909.273":
+  entity cordich at 1( 0) + 0 on 64;
+  architecture rtl of cordich at 36( 1208) + 0 on 65;

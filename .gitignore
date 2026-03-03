@@ -1,5 +1,7 @@
 *:Zone.Identifier
-
+*.py
+*.sh
+Doxyfile
 
 docs/
 run/

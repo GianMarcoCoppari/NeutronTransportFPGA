@@ -1,0 +1,113 @@
+/bin/bash: warning: setlocale: LC_ALL: cannot change locale (en_US.UTF-8)
+==============================================
+Compilazione Test ID Propagation
+==============================================
+Step 1/7: Compilazione Packages...
+  Compiling: config/pkg/config.vhd
+  Compiling: config/pkg/configcordic.vhd
+  Compiling: config/pkg/configcordicc.vhd
+  Compiling: config/pkg/configcordich.vhd
+  Compiling: config/pkg/configopenmc.vhd
+Step 2/7: Compilazione Math Components...
+  Compiling: math/prng/xoshiro256.vhd
+  Compiling: math/divider/radix2_stagediv.vhd
+  Compiling: math/divider/divr2.vhd
+  Compiling: math/cordich/poscordicstageh.vhd
+  Compiling: math/cordich/negcordicstageh.vhd
+  Compiling: math/cordich/cordich.vhd
+  Compiling: math/cordich/customln.vhd
+  Compiling: math/cordich/customsqrt.vhd
+  Compiling: math/cordicc/cordicstagec.vhd
+  Compiling: math/cordicc/reduceangle.vhd
+  Compiling: math/cordicc/cordicc.vhd
+  Compiling: math/cordicc/sincos.vhd
+  Compiling: math/search/binarysearch.vhd
+  Compiling: math/interp/lspline.vhd
+Step 3/7: Compilazione Memory/ROM...
+  Compiling: config/memory/xs_rom_small.vhd
+  Compiling: config/memory/xs.vhd
+  Compiling: config/memory/fission_spectrum_rom.vhd
+Step 4/7: Compilazione Physics Modules...
+  Compiling: reactor/physics/absorption.vhd
+  Compiling: reactor/physics/scattering.vhd
+  Compiling: reactor/physics/scattering_realistic.vhd
+  Compiling: reactor/physics/fission.vhd
+  Compiling: reactor/physics/energy_sample_fission.vhd
+  Compiling: reactor/physics/energy_loss_scatter.vhd
+Step 5/7: Compilazione Workers...
+  Compiling: reactor/xs_lookup.vhd
+  Compiling: reactor/materiallookup.vhd
+  Compiling: reactor/physicsworker.vhd
+  Compiling: reactor/advance/calc_dist_geometry.vhd
+  Compiling: reactor/advance/calc_dist_physics.vhd
+  Compiling: reactor/advance/advanceworker.vhd
+  Compiling: reactor/geometryworker.vhd
+  Compiling: reactor/eventworker.vhd
+Step 6/7: Compilazione Pipeline & Scheduler...
+  Compiling: reactor/transportpl.vhd
+  Compiling: fifo/fifo.vhd
+  Compiling: fifo/scheduler.vhd
+Step 7/7: Compilazione Testbenches...
+  Compiling: test/testreactor/tb_id_immediate.vhd
+  Compiling: test/testreactor/tb_id_propagation.vhd
+
+==============================================
+Elaborazione Testbenches...
+==============================================
+
+==============================================
+Esecuzione Test 1: ID Immediati
+==============================================
+Output salvato in: tb_id_immediate.log
+
+==============================================
+Esecuzione Test 2: ID Propagation
+==============================================
+Output salvato in: tb_id_propagation.log
+
+==============================================
+ANALISI RISULTATI
+==============================================
+
+--- Test 1: ID Immediati (primi 100 cicli) ---
+Pattern di iniezione (prime 10):
+Ciclo 2: Inject ID=0x0000000000000008 (8 dec)
+Ciclo 4: Inject ID=0x0000000000000010 (16 dec)
+Ciclo 6: Inject ID=0x0000000000000018 (24 dec)
+Ciclo 8: Inject ID=0x0000000000000020 (32 dec)
+Ciclo 10: Inject ID=0x0000000000000028 (40 dec)
+Ciclo 12: Inject ID=0x0000000000000030 (48 dec)
+Ciclo 14: Inject ID=0x0000000000000038 (56 dec)
+Ciclo 16: Inject ID=0x0000000000000040 (64 dec)
+Ciclo 18: Inject ID=0x0000000000000048 (72 dec)
+Ciclo 20: Inject ID=0x0000000000000050 (80 dec)
+
+--- Test 2: ID Propagation ---
+ID Iniettati (primi 5):
+[INJECT] Particle #1 ID = 0x0000000000000008 (dec 8)
+[INJECT] Particle #2 ID = 0x0000000000000010 (dec 16)
+[INJECT] Particle #3 ID = 0x0000000000000018 (dec 24)
+[INJECT] Particle #4 ID = 0x0000000000000020 (dec 32)
+[INJECT] Particle #5 ID = 0x0000000000000028 (dec 40)
+
+ID Terminati (primi 5):
+[FINISHED] Particle #1 ID = 0x0000000000000070 (dec 112)
+[FINISHED] Particle #2 ID = 0x0000000000000078 (dec 120)
+[FINISHED] Particle #3 ID = 0x00000000000000A0 (dec 160)
+[FINISHED] Particle #4 ID = 0x00000000000000A0 (dec 160)
+[FINISHED] Particle #5 ID = 0x00000000000000A0 (dec 160)
+
+Errori ID Zero:
+✓ Nessun errore ID zero rilevato
+
+Eventi di Fissione:
+Interaction: FISSION, Parent Id: 152, n:2
+[TRACE] Id: 1218 Event: FISSION PRODUCT (Bank)
+
+==============================================
+TEST COMPLETATI
+==============================================
+Per vedere tutti i dettagli:
+  cat tb_id_immediate.log
+  cat tb_id_propagation.log
+==============================================

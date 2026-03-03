@@ -1,0 +1,134 @@
+../../src/ieee2008/numeric_std-body.vhdl:3036:7:@0ms:(assertion warning): NUMERIC_STD.TO_INTEGER: metavalue detected, returning 0
+../../src/ieee2008/numeric_std-body.vhdl:1289:7:@0ms:(assertion warning): NUMERIC_STD.">": metavalue detected, returning FALSE
+../../src/ieee2008/numeric_std-body.vhdl:1441:7:@0ms:(assertion warning): NUMERIC_STD."<": metavalue detected, returning FALSE
+../../src/ieee2008/numeric_std-body.vhdl:1289:7:@0ms:(assertion warning): NUMERIC_STD.">": metavalue detected, returning FALSE
+../../src/ieee2008/numeric_std-body.vhdl:1441:7:@0ms:(assertion warning): NUMERIC_STD."<": metavalue detected, returning FALSE
+../../src/ieee2008/numeric_std-body.vhdl:1289:7:@0ms:(assertion warning): NUMERIC_STD.">": metavalue detected, returning FALSE
+../../src/ieee2008/numeric_std-body.vhdl:1441:7:@0ms:(assertion warning): NUMERIC_STD."<": metavalue detected, returning FALSE
+test/testreactor/tb_id_propagation.vhd:116:9:@120ns:(report note): ========================================
+test/testreactor/tb_id_propagation.vhd:117:9:@120ns:(report note): TEST: ID Propagation Check
+test/testreactor/tb_id_propagation.vhd:118:9:@120ns:(report note): Injecting 20 particles with IDs: 8, 16, 24, 32...
+test/testreactor/tb_id_propagation.vhd:119:9:@120ns:(report note): ========================================
+[INJECT] Particle #1 ID = 0x0000000000000008 (dec 8)
+[INJECT] Particle #2 ID = 0x0000000000000010 (dec 16)
+[INJECT] Particle #3 ID = 0x0000000000000018 (dec 24)
+[INJECT] Particle #4 ID = 0x0000000000000020 (dec 32)
+[INJECT] Particle #5 ID = 0x0000000000000028 (dec 40)
+[INJECT] Particle #6 ID = 0x0000000000000030 (dec 48)
+[INJECT] Particle #7 ID = 0x0000000000000038 (dec 56)
+[INJECT] Particle #8 ID = 0x0000000000000040 (dec 64)
+[INJECT] Particle #9 ID = 0x0000000000000048 (dec 72)
+[INJECT] Particle #10 ID = 0x0000000000000050 (dec 80)
+[INJECT] Particle #11 ID = 0x0000000000000058 (dec 88)
+[INJECT] Particle #12 ID = 0x0000000000000060 (dec 96)
+[INJECT] Particle #13 ID = 0x0000000000000068 (dec 104)
+[INJECT] Particle #14 ID = 0x0000000000000070 (dec 112)
+[INJECT] Particle #15 ID = 0x0000000000000078 (dec 120)
+[INJECT] Particle #16 ID = 0x0000000000000080 (dec 128)
+[INJECT] Particle #17 ID = 0x0000000000000088 (dec 136)
+[INJECT] Particle #18 ID = 0x0000000000000090 (dec 144)
+[INJECT] Particle #19 ID = 0x0000000000000098 (dec 152)
+[INJECT] Particle #20 ID = 0x00000000000000A0 (dec 160)
+test/testreactor/tb_id_propagation.vhd:163:9:@515ns:(report note): All particles injected. Waiting for processing...
+Advancement, Id: 56 dist: 007242638C726144
+Advancement, Id: 64 dist: 00124DE3BB452C06
+Advancement, Id: 72 dist: 00036B035C6DF091
+Advancement, Id: 80 dist: 00213EF5D241EE25
+Advancement, Id: 88 dist: 00069336C71AB31D
+Advancement, Id: 96 dist: 00217949B678890B
+Advancement, Id: 104 dist: 000BBAE44486703C
+Advancement, Id: 112 dist: 000E0D924C690499
+Advancement, Id: 120 dist: 0103500D0A3EAC85
+Advancement, Id: 128 dist: 001976782504B2E9
+Advancement, Id: 136 dist: 003B8CA541305487
+Advancement, Id: 144 dist: 0116503EF6F5F2A1
+Advancement, Id: 152 dist: 00037A4057CEE767
+Advancement, Id: 160 dist: 0533B39ABFC7C33E
+Advancement, Id: 160 dist: 0533B39ABFC7C33E
+Advancement, Id: 160 dist: 0533B39ABFC7C33E
+Advancement, Id: 160 dist: 0533B39ABFC7C33E
+Advancement, Id: 160 dist: 0533B39ABFC7C33E
+Advancement, Id: 160 dist: 0533B39ABFC7C33E
+Advancement, Id: 160 dist: 0533B39ABFC7C33E
+Interaction: SCATTER, Id: 56
+Interaction: SCATTER, Id: 64
+Interaction: SCATTER, Id: 72
+Interaction: SCATTER, Id: 80
+Interaction: SCATTER, Id: 88
+Interaction: SCATTER, Id: 96
+Interaction: SCATTER, Id: 104
+Interaction: ABSORPTION, Id: 112
+[FINISHED] Particle #1 ID = 0x0000000000000070 (dec 112)
+Interaction: ABSORPTION, Id: 120
+[FINISHED] Particle #2 ID = 0x0000000000000078 (dec 120)
+Interaction: SCATTER, Id: 128
+Interaction: SCATTER, Id: 136
+Interaction: SCATTER, Id: 144
+Interaction: FISSION, Parent Id: 152, n:2
+DEBUG: After shift, base ID = 1216
+  -> Child Created (Immediate), Id: 1217
+[TRACE] Id: 1218 Event: FISSION PRODUCT (Bank)
+Interaction: SURFACE_LEAK, Id: 160
+[FINISHED] Particle #3 ID = 0x00000000000000A0 (dec 160)
+Interaction: SURFACE_LEAK, Id: 160
+[FINISHED] Particle #4 ID = 0x00000000000000A0 (dec 160)
+Interaction: SURFACE_LEAK, Id: 160
+[FINISHED] Particle #5 ID = 0x00000000000000A0 (dec 160)
+Interaction: SURFACE_LEAK, Id: 160
+[FINISHED] Particle #6 ID = 0x00000000000000A0 (dec 160)
+Interaction: SURFACE_LEAK, Id: 160
+[FINISHED] Particle #7 ID = 0x00000000000000A0 (dec 160)
+Interaction: SURFACE_LEAK, Id: 160
+[FINISHED] Particle #8 ID = 0x00000000000000A0 (dec 160)
+Interaction: SURFACE_LEAK, Id: 160
+[FINISHED] Particle #9 ID = 0x00000000000000A0 (dec 160)
+Advancement, Id: 104 dist: 0533B39ABFC7C33E
+Advancement, Id: 104 dist: 0533B39ABFC7C33E
+Advancement, Id: 104 dist: 000DEC130F7BA4A0
+Advancement, Id: 128 dist: 00609FF25E9544AD
+Advancement, Id: 136 dist: 0004FB1B1951D939
+Advancement, Id: 144 dist: 00346DEC313C80C6
+Advancement, Id: 1217 dist: 00098476E65092EE
+Advancement, Id: 1218 dist: 0533B39ABFC7C33E
+Advancement, Id: 1218 dist: 0533B39ABFC7C33E
+Advancement, Id: 1218 dist: 0533B39ABFC7C33E
+Advancement, Id: 1218 dist: 0533B39ABFC7C33E
+Advancement, Id: 1218 dist: 0533B39ABFC7C33E
+Interaction: SCATTER, Id: 104
+Interaction: SCATTER, Id: 104
+Interaction: SCATTER, Id: 104
+Interaction: ABSORPTION, Id: 128
+[FINISHED] Particle #10 ID = 0x0000000000000080 (dec 128)
+Interaction: SCATTER, Id: 136
+Interaction: SCATTER, Id: 144
+Interaction: ABSORPTION, Id: 1217
+[FINISHED] Particle #11 ID = 0x00000000000004C1 (dec 1217)
+Interaction: SURFACE_LEAK, Id: 1218
+[FINISHED] Particle #12 ID = 0x00000000000004C2 (dec 1218)
+Interaction: SURFACE_LEAK, Id: 1218
+[FINISHED] Particle #13 ID = 0x00000000000004C2 (dec 1218)
+Interaction: SURFACE_LEAK, Id: 1218
+[FINISHED] Particle #14 ID = 0x00000000000004C2 (dec 1218)
+Interaction: SURFACE_LEAK, Id: 1218
+[FINISHED] Particle #15 ID = 0x00000000000004C2 (dec 1218)
+Interaction: SURFACE_LEAK, Id: 1218
+[FINISHED] Particle #16 ID = 0x00000000000004C2 (dec 1218)
+Advancement, Id: 144 dist: 0533B39ABFC7C33E
+Advancement, Id: 144 dist: 0533B39ABFC7C33E
+Advancement, Id: 144 dist: 0533B39ABFC7C33E
+Advancement, Id: 144 dist: 0533B39ABFC7C33E
+Advancement, Id: 144 dist: 0533B39ABFC7C33E
+Interaction: SURFACE_LEAK, Id: 144
+[FINISHED] Particle #17 ID = 0x0000000000000090 (dec 144)
+Interaction: SURFACE_LEAK, Id: 144
+[FINISHED] Particle #18 ID = 0x0000000000000090 (dec 144)
+Interaction: SURFACE_LEAK, Id: 144
+[FINISHED] Particle #19 ID = 0x0000000000000090 (dec 144)
+Interaction: SURFACE_LEAK, Id: 144
+[FINISHED] Particle #20 ID = 0x0000000000000090 (dec 144)
+Interaction: SURFACE_LEAK, Id: 144
+[FINISHED] Particle #21 ID = 0x0000000000000090 (dec 144)
+test/testreactor/tb_id_propagation.vhd:175:9:@5605ns:(report note): ========================================
+test/testreactor/tb_id_propagation.vhd:176:9:@5605ns:(report note): TEST COMPLETED
+Injected: 20 | Finished: 21
+test/testreactor/tb_id_propagation.vhd:182:9:@5605ns:(report note): ========================================

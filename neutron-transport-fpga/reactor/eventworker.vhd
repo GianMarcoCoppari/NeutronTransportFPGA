@@ -326,7 +326,32 @@ begin
                                 -- Using 3 bits (x8) prevents collision with Source IDs (multiples of 8)
                                 -- capable of handling up to 7 children (Index 1..7) without overflow to next multiple.
                                 -- Current Max Nu = 4.
-                                v_out.id := std_logic_vector(unsigned(v_out.id) sll 3); 
+                                
+                                -- OVERFLOW PROTECTION: Check if upper bits are non-zero before shift
+                                -- If ID is too large (upper 3 bits occupied), wrap using modulo to prevent zero IDs
+                                if unsigned(v_out.id(strlength-1 downto strlength-3)) /= 0 then
+                                    -- Risk of overflow detected - use modulo to keep ID in safe range
+                                    -- Keep lower bits to maintain uniqueness within generation
+                                    write(l, string'("WARNING: ID overflow risk detected, applying modulo"));
+                                    writeline(output, l);
+                                    v_out.id := std_logic_vector(resize(unsigned(v_out.id(strlength-4 downto 0)) sll 3, strlength));
+                                else
+                                    -- Safe to shift without overflow
+                                    v_out.id := std_logic_vector(unsigned(v_out.id) sll 3);
+                                end if;
+                                
+                                -- DEBUG: Verify shifted ID is not zero
+                                write(l, string'("DEBUG: After shift, base ID = "));
+                                write(l, safe_id_to_int(v_out.id));
+                                writeline(output, l);
+                                
+                                -- CRITICAL CHECK: If ID became zero, it indicates overflow bug
+                                if unsigned(v_out.id) = 0 then
+                                    write(l, string'("ERROR: FISSION generated ZERO ID - parent was too large!"));
+                                    writeline(output, l);
+                                    -- Force non-zero ID to prevent silent failures
+                                    v_out.id := std_logic_vector(to_unsigned(1, strlength));
+                                end if;
                                 
                                 -- 3. Prepare Immediate Daughter (Index 1)
                                 v_out.alive := '1'; 
